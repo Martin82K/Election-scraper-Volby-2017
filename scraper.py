@@ -77,7 +77,6 @@ def location_scraper_by_code(soup):
 def pridej_data():
     for key, value in volebni_strany.items():
         data_dict[key] = value
-
     return data_dict
 
 
@@ -111,7 +110,7 @@ def generate_output(header, data_dict):
     with open("vystup_vysledku_voleb_csv", mode="w") as output:
         writer = csv.writer(output)
         writer.writerow(header)
-        writer.writerows(data_dict)
+        writer.writerow(data_dict.keys())
 
         print("Zápis byl úspěšně proveden.")
 
@@ -126,7 +125,6 @@ if __name__ == "__main__":
     codes, location, registered, envelopes, valid, volebni_strany, strany, hlasy_stran = location_scraper_by_code(soup)
     database_builder(codes, location, registered, envelopes, valid, volebni_strany, data_dict)
     json_out()
-    # pridej_data()
+    generate_output(header, data_dict)
+
     pprint(data_dict)
-    # pprint(volebni_strany)
-    # pprint(data_dict)
