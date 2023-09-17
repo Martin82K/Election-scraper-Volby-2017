@@ -1,6 +1,7 @@
 import sys
 import requests
 import csv
+import json
 from pprint import pprint
 
 from bs4 import BeautifulSoup
@@ -49,7 +50,7 @@ def location_scraper_by_code(soup):
     envelopes = []
     volebni_strany = {}
 
-    for link in links[0:3]:
+    for link in links[0:1]:
         cykl += 1
 
         location_resp_by_code = requests.get(link)
@@ -57,7 +58,6 @@ def location_scraper_by_code(soup):
             location_soup = BeautifulSoup(location_resp_by_code.content, "html.parser")
 
             nazvy = location_soup.find_all("td", class_="overflow_name")
-            # if isinstance()
             registered.append(location_soup.select_one("td:nth-child(4)").get_text(strip=True))
             envelopes.append(location_soup.select_one("td:nth-child(7)").get_text(strip=True))
             valid.append(location_soup.select_one("td:nth-child(8)").get_text(strip=True))
@@ -71,22 +71,39 @@ def location_scraper_by_code(soup):
     for i, name in enumerate(strany):
         volebni_strany[name] = hlasy_stran[i]
 
-    return kody, locations, registered, envelopes, valid, volebni_strany
+    return kody, locations, registered, envelopes, valid, volebni_strany, strany, hlasy_stran
 
 
-def database_builder(kody, locations, registered, envelopes, valid, volebni_strany, data_dict):
-    ziped_data = zip(kody, locations, registered, envelopes, valid, volebni_strany)
+def pridej_data():
+    for key, value in volebni_strany.items():
+        data_dict[key] = value
+
+    return data_dict
+
+
+def database_builder(codes, location, registered, envelopes, valid, volebni_strany, data_dict):
+    ziped_data = zip(codes, location, registered, envelopes, valid, volebni_strany)
 
     for data in ziped_data:
         kod, lokalita, reg, env, val, strana = data
-        data_dict[kod] = {
+        data_dict[lokalita] = {
+            'Kod Obce': kod,
             'Location': lokalita,
             'Registered': reg,
             'Envelopes': env,
-            'Valid Votes': val,
-            'Strany': volebni_strany
+            'Valid Votes': val
+
         }
-    return sorted(data_dict)
+    pridej_data()
+    return data_dict
+
+
+def json_out():
+    json_soubor = open("muj_json", mode="w")
+    json.dump(data_dict, json_soubor)
+    json.dump(volebni_strany, json_soubor)
+    json_soubor.close()
+    print(f"JSON created...")
 
 
 def generate_output(header, data_dict):
@@ -94,6 +111,7 @@ def generate_output(header, data_dict):
     with open("vystup_vysledku_voleb_csv", mode="w") as output:
         writer = csv.writer(output)
         writer.writerow(header)
+        writer.writerows(data_dict)
 
         print("Zápis byl úspěšně proveden.")
 
@@ -105,8 +123,10 @@ def scraper_end():
 if __name__ == "__main__":
     data_dict = {}
     soup = scraper()
-    codes, location, registered, envelopes, valid, volebni_strany = location_scraper_by_code(soup)
+    codes, location, registered, envelopes, valid, volebni_strany, strany, hlasy_stran = location_scraper_by_code(soup)
     database_builder(codes, location, registered, envelopes, valid, volebni_strany, data_dict)
-    generate_output(header, data_dict)
-
+    json_out()
+    # pridej_data()
     pprint(data_dict)
+    # pprint(volebni_strany)
+    # pprint(data_dict)
