@@ -1,130 +1,115 @@
 import sys
 import requests
 import csv
-import json
+
 from pprint import pprint
 
 from bs4 import BeautifulSoup
 
-#  python3 scraper.py "https://volby.cz/pls/ps2017nss/ps32?xjazyk=CZ&xkraj=12&xnumnuts=7103" "vysledky_prostejov.html"
-
-header = ["codes", "location", "registered", "envelopes", "valid"]
-
 
 def scraper():
-    # if len(sys.argv) != 3:
-    #     print("Nebyly zadány všechny potřebné parametry.\nUkončuji program.")
-    #     sys.exit(1)
-    #
-    # web_page = sys.argv[1]
-    # name_file = sys.argv[2]
-    #
-    # print(f"STAHUJI DATA Z VYBRANÉHO CÍLE: {sys.argv[1]}")
-    # req = requests.get(web_page)
+    """
+    Ukázka: #  python3 scraper.py "https://volby.cz/pls/ps2017nss/ps32?xjazyk=CZ&xkraj=12&xnumnuts=7103" "vysledky_prostejov.html"
+    :return:
+    """
+    if len(sys.argv) != 3:
+        print("Nebyly zadány všechny potřebné parametry.\nUkončuji program.")
+        sys.exit(1)
+    else:
+        web_page = sys.argv[1]
+        name_file = sys.argv[2]
 
-    localni_pozadavek = requests.get("https://volby.cz/pls/ps2017nss/ps32?xjazyk=CZ&xkraj=12&xnumnuts=7103")
-    if localni_pozadavek.status_code == 200:
-        content = localni_pozadavek.content
-        soup = BeautifulSoup(content, "html.parser")
+        print(f"STAHUJI DATA Z VYBRANÉHO CÍLE: {sys.argv[1]}")
+        req = requests.get(web_page)
 
-        # print(f"UKLÁDÁM DATA DO SOUBORU: {name_file}")
-        # with open(name_file, mode="w", encoding="UTF-8") as file:
-        #     file.write(soup.prettify())
+    soup = bs_soup()
+    city_code_numbers_new = city_code_numbers(soup)
+    city_names_new = city_names(soup)
+    scraped_city_data, parties_all = city_scraper(city_code_numbers_new, city_names_new)
+    header = header_maker(parties_all)
+    output_to_csv(scraped_city_data, header)
+
+
+def bs_soup(web_page):
+    pozadavek = requests.get("https://volby.cz/pls/ps2017nss/ps32?xjazyk=CZ&xkraj=12&xnumnuts=7103")
+    if pozadavek.status_code == 200:
+        soup = BeautifulSoup(pozadavek.content, "html.parser")
         return soup
 
 
-def location_scraper_by_code(soup):
-    """Stahování dat z jednotlivých obcí"""
-    # extrakce požadovaných dat
-    numbers = soup.find_all("td", class_="cislo")
+def city_code_numbers(soup):
+    city_numbers = soup.find_all("td", class_="cislo")
+    city_code_numbers_new = [int(number.getText(strip=True)) for number in city_numbers]
+    return city_code_numbers_new
+
+
+def city_names(soup):
     names = soup.find_all("td", class_="overflow_name")
-
-    kody = [int(number.getText(strip=True)) for number in numbers]
-    locations = [name.get_text(strip=True) for name in names]
-    links = [f"https://volby.cz/pls/ps2017nss/ps311?xjazyk=CZ&xkraj=12&xobec={kod}&xvyber=7103"
-             for kod in kody]
-    cykl = 0
-
-    valid = []
-    registered = []
-    envelopes = []
-    volebni_strany = {}
-
-    for link in links[0:1]:
-        cykl += 1
-
-        location_resp_by_code = requests.get(link)
-        if location_resp_by_code.status_code == 200:
-            location_soup = BeautifulSoup(location_resp_by_code.content, "html.parser")
-
-            nazvy = location_soup.find_all("td", class_="overflow_name")
-            registered.append(location_soup.select_one("td:nth-child(4)").get_text(strip=True))
-            envelopes.append(location_soup.select_one("td:nth-child(7)").get_text(strip=True))
-            valid.append(location_soup.select_one("td:nth-child(8)").get_text(strip=True))
-            hlasy = location_soup.select("td:nth-child(3)")
-
-            hlasy_stran = [hlas.getText(strip=True) for hlas in hlasy[1:-1]]
-            strany = [nazev.getText(strip=True) for nazev in nazvy]  # 25 stran
-
-        print(f"Location scraper {cykl}/{len(links)}...OK")
-
-    for i, name in enumerate(strany):
-        volebni_strany[name] = hlasy_stran[i]
-
-    return kody, locations, registered, envelopes, valid, volebni_strany, strany, hlasy_stran
+    city_names_new = [name.get_text(strip=True) for name in names]
+    return city_names_new
 
 
-def pridej_data():
-    for key, value in volebni_strany.items():
-        data_dict[key] = value
-    return data_dict
+def city_links(city_code_numbers_new):
+    city_part_link = [f"https://volby.cz/pls/ps2017nss/ps311?xjazyk=CZ&xkraj=12&xobec={number}&xvyber=7103"
+                      for number in city_code_numbers_new]
+    return city_part_link
 
 
-def database_builder(codes, location, registered, envelopes, valid, volebni_strany, data_dict):
-    ziped_data = zip(codes, location, registered, envelopes, valid, volebni_strany)
+def city_scraper(city_code_numbers_new, city_names_new):
+    scraped_city_data = []
 
-    for data in ziped_data:
-        kod, lokalita, reg, env, val, strana = data
-        data_dict[lokalita] = {
-            'Kod Obce': kod,
-            'Location': lokalita,
-            'Registered': reg,
-            'Envelopes': env,
-            'Valid Votes': val
+    for index, number in enumerate(city_code_numbers_new[0:5]):
+        city_part_scraper = requests.get(
+            f"https://volby.cz/pls/ps2017nss/ps311?xjazyk=CZ&xkraj=12&xobec={number}&xvyber=7103")
 
+        city_part_soup = BeautifulSoup(city_part_scraper.content, "html.parser")
+
+        city_name = city_names_new[index]
+
+        registered = (city_part_soup.select_one("td:nth-child(4)").get_text(strip=True))
+        envelopes = (city_part_soup.select_one("td:nth-child(7)").get_text(strip=True))
+        valid = (city_part_soup.select_one("td:nth-child(8)").get_text(strip=True))
+
+        voices_data = city_part_soup.select("td:nth-child(3)")
+        voices_parties = [voice.getText(strip=True) for voice in voices_data[1:-1]]
+
+        parties_data = city_part_soup.find_all("td", class_="overflow_name")
+        parties_all = ([party.getText(strip=True) for party in parties_data])
+
+        elect_parties_with_voices = dict()
+
+        for i, name in enumerate(parties_all):
+            elect_parties_with_voices[name] = voices_parties[i]
+
+        data_city = {
+            'codes': number,
+            'location': city_name,
+            'registered': registered,
+            'envelopes': envelopes,
+            'valid': valid
         }
-    pridej_data()
-    return data_dict
+        for key, value in elect_parties_with_voices.items():
+            data_city[key] = value
+
+        scraped_city_data.append(data_city)
+
+    return scraped_city_data, parties_all
 
 
-def json_out():
-    json_soubor = open("muj_json", mode="w")
-    json.dump(data_dict, json_soubor)
-    json.dump(volebni_strany, json_soubor)
-    json_soubor.close()
-    print(f"JSON created...")
+def header_maker(parties_all):
+    header = ["codes", "location", "registered", "envelopes", "valid"]
+    for party in parties_all:
+        header.append(party)
+    return header
 
 
-def generate_output(header, data_dict):
-    """Zápis dat do souboru"""
-    with open("vystup_vysledku_voleb_csv", mode="w") as output:
-        writer = csv.writer(output)
-        writer.writerow(header)
-        writer.writerow(data_dict.keys())
-
-        print("Zápis byl úspěšně proveden.")
-
-
-def scraper_end():
-    print("HOTOVO!\nUkončuji Election-scraper.")
+def output_to_csv(scraped_city_data, header, name_file):
+    with open(name_file, mode="w", newline="", encoding="utf-8") as output:
+        writer = csv.DictWriter(output, fieldnames=header, dialect="excel")
+        writer.writeheader()
+        for city in scraped_city_data:
+            writer.writerow(city)
 
 
 if __name__ == "__main__":
-    data_dict = {}
-    soup = scraper()
-    codes, location, registered, envelopes, valid, volebni_strany, strany, hlasy_stran = location_scraper_by_code(soup)
-    database_builder(codes, location, registered, envelopes, valid, volebni_strany, data_dict)
-    json_out()
-    generate_output(header, data_dict)
-
-    pprint(data_dict)
+    scraper()
