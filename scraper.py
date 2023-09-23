@@ -37,25 +37,22 @@ def bs_soup(web_page):
         return soup
 
 
-def city_code_numbers(soup):
+def city_code_numbers(soup) -> list[int]:
     city_numbers = soup.find_all("td", class_="cislo")
     city_code_numbers_new = [int(number.getText(strip=True)) for number in city_numbers]
     return city_code_numbers_new
 
 
-def city_names(soup):
+def city_names(soup) -> list[str]:
     names = soup.find_all("td", class_="overflow_name")
     city_names_new = [name.get_text(strip=True) for name in names]
     return city_names_new
 
 
-def city_links(city_code_numbers_new):
-    city_part_link = [f"https://volby.cz/pls/ps2017nss/ps311?xjazyk=CZ&xkraj=12&xobec={number}&xvyber=7103"
-                      for number in city_code_numbers_new]
-    return city_part_link
-
-
-def city_scraper(city_code_numbers_new, city_names_new):
+def city_scraper(city_code_numbers_new,
+                 city_names_new) -> 'tuple[list[dict[str | str, str | list[str] | str]], list[str]]':
+    """V zadaném úseku stáhneme data v jednotlivých obcích přičemž v každé obci targetneme námi požadovaná data a
+    a zprocesujeme výstup na čistá data. Tato data jsou uložena do listu a případně slovníku"""
     print("Stahuji data z jednotlivých obcí...")
     scraped_city_data = []
 
@@ -97,14 +94,15 @@ def city_scraper(city_code_numbers_new, city_names_new):
     return scraped_city_data, parties_all
 
 
-def header_maker(parties_all):
+def header_maker(parties_all) -> list[str]:
+    """Funkce iterue seznamem jednotlivých volebních stran a přidává je do listu jako budoucí hlavičku"""
     header = ["codes", "location", "registered", "envelopes", "valid"]
     for party in parties_all:
         header.append(party)
     return header
 
 
-def output_to_csv(scraped_city_data, header, name_file):
+def output_to_csv(scraped_city_data, header, name_file) -> csv:
     print("Zapisuji do souboru:", name_file)
     with open(name_file, mode="w", newline="", encoding="utf-8") as output:
         writer = csv.DictWriter(output, fieldnames=header, dialect="excel")
