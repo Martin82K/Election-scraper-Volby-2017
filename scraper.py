@@ -52,12 +52,14 @@ def city_urls(soup):
 
 
 def city_code_numbers(soup) -> list[int]:
+    """Vytvoří list s kódy jednotlivých obcí"""
     city_numbers = soup.find_all("td", class_="cislo")
     city_code_numbers_new = [int(number.getText(strip=True)) for number in city_numbers]
     return city_code_numbers_new
 
 
 def city_names(soup) -> list[str]:
+    """Vytvoř list se jmény jednotlivých obcí."""
     names = soup.find_all("td", class_="overflow_name")
     city_names_new = [name.get_text(strip=True) for name in names]
     return city_names_new
@@ -65,8 +67,8 @@ def city_names(soup) -> list[str]:
 
 def city_scraper(city_links, city_code_numbers_new,
                  city_names_new) -> 'tuple[list[dict[str | str, str | list[str] | str]], list[str]]':
-    """V zadaném úseku stáhneme data v jednotlivých obcích přičemž v každé obci targetneme námi požadovaná data a
-    a zprocesujeme výstup na čistá data. Tato data jsou uložena do listu a případně slovníku"""
+    """funkce stáhne data pro každý okrsek. Tato data přidá postupně do slovníku. Pokračuje dalším odkazem.
+     Po vyčerpání všech okrsků vrátí tento slovník."""
     print("Stahuji data z jednotlivých obcí...")
     scraped_city_data = []
 
@@ -85,7 +87,7 @@ def city_scraper(city_links, city_code_numbers_new,
                                     class_="cislo").find_next_sibling().find_next().find_next().find_next().getText()
 
         voices_data = city_part_soup.select("td:nth-child(3)")
-        voices_parties = [voice.getText(strip=True) for voice in voices_data[1:-1]]
+        voices_parties = [voice.getText(strip=True) for voice in voices_data[1:]]
 
         parties_data = city_part_soup.find_all("td", class_="overflow_name")
         parties_all = ([party.getText(strip=True) for party in parties_data])
@@ -111,7 +113,7 @@ def city_scraper(city_links, city_code_numbers_new,
 
 
 def header_maker(parties_all) -> list[str]:
-    """Funkce iterue seznamem jednotlivých volebních stran a přidává je do listu jako budoucí hlavičku"""
+    """Funkce iteruje seznamem jednotlivých volebních stran a přidává je do listu jako budoucí hlavičku"""
     header = ["codes", "location", "registered", "envelopes", "valid"]
     for party in parties_all:
         header.append(party)
@@ -119,6 +121,7 @@ def header_maker(parties_all) -> list[str]:
 
 
 def output_to_csv(scraped_city_data, header, name_file) -> csv:
+    """zapisuje získaná data do souboru se jménem uvedeném ve spouštěcím argumentu scriptu scrapera"""
     print("Zapisuji do souboru:", name_file)
     with open(name_file, mode="w", newline="", encoding="utf-8") as output:
         writer = csv.DictWriter(output, fieldnames=header, dialect="excel")
