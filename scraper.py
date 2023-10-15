@@ -7,6 +7,7 @@ from bs4 import BeautifulSoup
 
 def scraper():
     """
+
     Ukázka: #  python3 scraper.py "https://volby.cz/pls/ps2017nss/ps32?xjazyk=CZ&xkraj=12&xnumnuts=7103" "vysledky_projekt3.csv"
     :return:
     """
@@ -24,7 +25,8 @@ def scraper():
     soup = bs_soup(web_page)
     city_code_numbers_new = city_code_numbers(soup)
     city_names_new = city_names(soup)
-    scraped_city_data, parties_all = city_scraper(city_code_numbers_new, city_names_new)
+    city_links = city_urls(soup)
+    scraped_city_data, parties_all = city_scraper(city_links, city_code_numbers_new, city_names_new)
     header = header_maker(parties_all)
     output_to_csv(scraped_city_data, header, name_file)
 
@@ -35,6 +37,18 @@ def bs_soup(web_page):
     if pozadavek.status_code == 200:
         soup = BeautifulSoup(pozadavek.content, "html.parser")
         return soup
+
+
+def city_urls(soup):
+    """Since other locations can have other links, we have to generate complete links for all possibilities."""
+    city_urls = []
+    tables = soup.find_all("td", class_="cislo")
+    for table in tables:
+        link = table.find("a")
+        url = link["href"]
+        city_urls.append(url)
+
+    return city_urls
 
 
 def city_code_numbers(soup) -> list[int]:
@@ -49,24 +63,26 @@ def city_names(soup) -> list[str]:
     return city_names_new
 
 
-def city_scraper(city_code_numbers_new,
+def city_scraper(city_links, city_code_numbers_new,
                  city_names_new) -> 'tuple[list[dict[str | str, str | list[str] | str]], list[str]]':
     """V zadaném úseku stáhneme data v jednotlivých obcích přičemž v každé obci targetneme námi požadovaná data a
     a zprocesujeme výstup na čistá data. Tato data jsou uložena do listu a případně slovníku"""
     print("Stahuji data z jednotlivých obcí...")
     scraped_city_data = []
 
-    for index, number in enumerate(city_code_numbers_new):
+    for index, link in enumerate(city_links):
         city_part_scraper = requests.get(
-            f"https://volby.cz/pls/ps2017nss/ps311?xjazyk=CZ&xkraj=12&xobec={number}&xvyber=7103")
+            f"https://volby.cz/pls/ps2017nss/{link}")
 
-        city_part_soup = BeautifulSoup(city_part_scraper.content, "html.parser")
+        city_part_soup: BeautifulSoup = BeautifulSoup(city_part_scraper.content, "html.parser")
 
         city_name = city_names_new[index]
+        number = city_code_numbers_new[index]
 
-        registered = (city_part_soup.select_one("td:nth-child(4)").get_text(strip=True))
-        envelopes = (city_part_soup.select_one("td:nth-child(7)").get_text(strip=True))
-        valid = (city_part_soup.select_one("td:nth-child(8)").get_text(strip=True))
+        registered = city_part_soup.find("td").getText()
+        envelopes = city_part_soup.find("td", class_="cislo").find_next().getText()
+        valid = city_part_soup.find("td",
+                                    class_="cislo").find_next_sibling().find_next().find_next().find_next().getText()
 
         voices_data = city_part_soup.select("td:nth-child(3)")
         voices_parties = [voice.getText(strip=True) for voice in voices_data[1:-1]]
