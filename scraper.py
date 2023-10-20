@@ -20,7 +20,6 @@ def scraper():
     name_file = sys.argv[2]
 
     print(f"STAHUJI DATA Z VYBRANÉHO CÍLE: {sys.argv[1]}")
-    # req = requests.get(web_page)
 
     soup = bs_soup(web_page)
     city_code_numbers_new = city_code_numbers(soup)
@@ -32,10 +31,10 @@ def scraper():
 
 
 def bs_soup(web_page):
-    pozadavek = requests.get(web_page)
+    req = requests.get(web_page)
 
-    if pozadavek.status_code == 200:
-        soup = BeautifulSoup(pozadavek.content, "html.parser")
+    if req.status_code == 200:
+        soup = BeautifulSoup(req.content, "html.parser")
         return soup
 
 
@@ -81,10 +80,12 @@ def city_scraper(city_links, city_code_numbers_new,
         city_name = city_names_new[index]
         number = city_code_numbers_new[index]
 
-        registered = city_part_soup.find("td").getText()
-        envelopes = city_part_soup.find("td", class_="cislo").find_next().getText()
-        valid = city_part_soup.find("td",
-                                    class_="cislo").find_next_sibling().find_next().find_next().find_next().getText()
+        registered = city_part_soup.find("td").find_next().find_next().find_next().get_text()
+        envelopes = city_part_soup.find(
+            "td", class_="cislo").find_next().find_next().find_next().find_next().get_text()
+        valid = city_part_soup.find(
+            "td",
+            class_="cislo").find_next_sibling().find_next().find_next().find_next().find_next().find_next().find_next().get_text()
 
         voices_data = city_part_soup.select("td:nth-child(3)")
         voices_parties = [voice.getText(strip=True) for voice in voices_data[1:]]
